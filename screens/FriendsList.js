@@ -1,6 +1,6 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ImageBackground, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ImageBackground, Alert, ScrollView } from 'react-native';
 import { useState, useEffect, useContext } from 'react';
-import { getFirestore, collection, query, where, getDocs, addDoc, onSnapshot, doc, setDoc, orderBy, limit, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, addDoc, onSnapshot, doc, setDoc, orderBy, limit, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../App';
 import { AuthContext } from '../App';
@@ -10,8 +10,9 @@ import * as Location from 'expo-location';
 export default function FriendList({ navigation }) {
   const { user } = useContext(AuthContext);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState({ friends: [], newUsers: [] });
   const [friends, setFriends] = useState([]);
+  const [isAddingFriend, setIsAddingFriend] = useState(false);
   const db = getFirestore();
 
   // Location tracking
@@ -142,15 +143,22 @@ export default function FriendList({ navigation }) {
   const handleSearch = async (query) => {
     setSearchQuery(query);
     if (!query.trim()) {
-      setSearchResults([]);
+      setSearchResults({ friends: [], newUsers: [] });
       return;
     }
 
     try {
+      const searchQueryLower = query.toLowerCase().trim();
+      
+      // Filter existing friends
+      const filteredFriends = friends.filter(friend => 
+        friend.displayName.toLowerCase().includes(searchQueryLower)
+      );
+
+      // Search for new users
       const usersRef = collection(db, 'users');
-      const q = query.toLowerCase();
       const querySnapshot = await getDocs(usersRef);
-      const results = [];
+      const newUsers = [];
       
       querySnapshot.forEach((doc) => {
         const userData = doc.data();
@@ -158,34 +166,76 @@ export default function FriendList({ navigation }) {
           doc.id !== user.uid && // Don't show current user
           !friends.some(friend => friend.uid === doc.id) && // Don't show existing friends
           userData.displayName && // Make sure displayName exists
-          userData.displayName.toLowerCase().includes(q)
+          userData.displayName.toLowerCase().includes(searchQueryLower)
         ) {
-          results.push({
+          newUsers.push({
             id: doc.id,
             ...userData
           });
         }
       });
       
-      setSearchResults(results);
+      setSearchResults({
+        friends: filteredFriends,
+        newUsers: newUsers
+      });
     } catch (error) {
       console.error('Search error:', error);
       Alert.alert('Error', 'Failed to search for users');
     }
   };
 
+  // Verify friend data
+  const verifyFriendData = async (friendId) => {
+    try {
+      const friendDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', friendId)));
+      if (friendDoc.empty) {
+        throw new Error('User not found');
+      }
+      return friendDoc.docs[0].data();
+    } catch (error) {
+      console.error('Error verifying friend:', error);
+      throw error;
+    }
+  };
+
   // Add friend function
   const addFriend = async (friendData) => {
+    if (isAddingFriend) return; // Prevent multiple simultaneous additions
+    
     try {
+      setIsAddingFriend(true);
+
+      // Verify friend data first
+      const verifiedFriendData = await verifyFriendData(friendData.id);
+      if (!verifiedFriendData) {
+        throw new Error('User not found');
+      }
+
+      // Check if already friends
+      const existingFriendDoc = await getDocs(
+        query(collection(db, `users/${user.uid}/friends`), where('uid', '==', friendData.id))
+      );
+      
+      if (!existingFriendDoc.empty) {
+        Alert.alert('Info', 'You are already friends with this user');
+        return;
+      }
+
+      // Create a batch write to ensure both operations succeed or fail together
+      const batch = writeBatch(db);
+
       // Add to current user's friends list
-      await setDoc(doc(db, `users/${user.uid}/friends/${friendData.id}`), {
+      const currentUserFriendRef = doc(db, `users/${user.uid}/friends/${friendData.id}`);
+      batch.set(currentUserFriendRef, {
         uid: friendData.id,
-        displayName: friendData.displayName,
+        displayName: verifiedFriendData.displayName,
         timestamp: serverTimestamp()
       });
 
       // Add current user to friend's friends list
-      await setDoc(doc(db, `users/${friendData.id}/friends/${user.uid}`), {
+      const friendUserFriendRef = doc(db, `users/${friendData.id}/friends/${user.uid}`);
+      batch.set(friendUserFriendRef, {
         uid: user.uid,
         displayName: user.displayName,
         timestamp: serverTimestamp()
@@ -193,18 +243,28 @@ export default function FriendList({ navigation }) {
 
       // Create chat document
       const chatId = [user.uid, friendData.id].sort().join('_');
-      await setDoc(doc(db, `chats/${chatId}`), {
+      const chatRef = doc(db, `chats/${chatId}`);
+      batch.set(chatRef, {
         participants: [user.uid, friendData.id],
         created: serverTimestamp()
       });
 
+      // Commit the batch
+      await batch.commit();
+
       // Clear search
       setSearchQuery('');
-      setSearchResults([]);
+      setSearchResults({ friends: [], newUsers: [] });
       Alert.alert('Success', 'Friend added successfully');
     } catch (error) {
       console.error('Error adding friend:', error);
-      Alert.alert('Error', 'Failed to add friend');
+      let errorMessage = 'Failed to add friend. Please try again.';
+      if (error.message === 'User not found') {
+        errorMessage = 'User not found. They may have deleted their account.';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsAddingFriend(false);
     }
   };
 
@@ -221,16 +281,20 @@ export default function FriendList({ navigation }) {
     <TouchableOpacity 
       style={styles.searchResultItem}
       onPress={() => addFriend(item)}
+      disabled={isAddingFriend}
     >
       <View style={styles.avatarContainer}>
         <Text style={styles.avatarText}>{item.displayName[0].toUpperCase()}</Text>
       </View>
       <Text style={styles.friendName}>{item.displayName}</Text>
       <TouchableOpacity 
-        style={styles.addButton}
+        style={[styles.addButton, isAddingFriend && styles.addButtonDisabled]}
         onPress={() => addFriend(item)}
+        disabled={isAddingFriend}
       >
-        <Text style={styles.addButtonText}>Add</Text>
+        <Text style={[styles.addButtonText, isAddingFriend && styles.addButtonTextDisabled]}>
+          {isAddingFriend ? 'Adding...' : 'Add'}
+        </Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -275,6 +339,71 @@ export default function FriendList({ navigation }) {
     </TouchableOpacity>
   );
 
+  const renderSearchSection = () => {
+    if (!searchQuery) return null;
+
+    const { friends: filteredFriends, newUsers } = searchResults;
+
+    return (
+      <View style={styles.searchResultsContainer}>
+        <ScrollView style={styles.searchScrollView}>
+          {filteredFriends.length > 0 && (
+            <View style={styles.searchSection}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="people" size={20} color="#fff" />
+                <Text style={styles.searchSectionTitle}>Your Friends</Text>
+              </View>
+              {filteredFriends.map((friend) => (
+                <View key={friend.id} style={styles.searchItemContainer}>
+                  {renderFriend({ item: friend })}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {newUsers.length > 0 && (
+            <View style={styles.searchSection}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="person-add" size={20} color="#fff" />
+                <Text style={styles.searchSectionTitle}>Add New Friends</Text>
+              </View>
+              {newUsers.map((user) => (
+                <View key={user.id} style={styles.searchItemContainer}>
+                  <TouchableOpacity 
+                    style={styles.searchResultItem}
+                    onPress={() => addFriend(user)}
+                    disabled={isAddingFriend}
+                  >
+                    <View style={styles.avatarContainer}>
+                      <Text style={styles.avatarText}>{user.displayName[0].toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.friendName}>{user.displayName}</Text>
+                    <TouchableOpacity 
+                      style={[styles.addButton, isAddingFriend && styles.addButtonDisabled]}
+                      onPress={() => addFriend(user)}
+                      disabled={isAddingFriend}
+                    >
+                      <Text style={[styles.addButtonText, isAddingFriend && styles.addButtonTextDisabled]}>
+                        {isAddingFriend ? 'Adding...' : 'Add'}
+                      </Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {filteredFriends.length === 0 && newUsers.length === 0 && (
+            <View style={styles.noResultsContainer}>
+              <Ionicons name="search" size={40} color="#fff" style={styles.noResultsIcon} />
+              <Text style={styles.noResultsText}>No users found</Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <ImageBackground 
       source={require('../assets/background4c.jpg')} 
@@ -293,23 +422,32 @@ export default function FriendList({ navigation }) {
             </TouchableOpacity>
           </View>
           <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search for user"
-              value={searchQuery}
-              onChangeText={handleSearch}
-              placeholderTextColor="#666"
-            />
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search for user"
+                value={searchQuery}
+                onChangeText={handleSearch}
+                placeholderTextColor="#666"
+              />
+              {searchQuery ? (
+                <TouchableOpacity 
+                  style={styles.clearButton}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setSearchResults({ friends: [], newUsers: [] });
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#666" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         </View>
         
         {searchQuery ? (
-          <FlatList
-            data={searchResults}
-            renderItem={renderSearchResult}
-            keyExtractor={item => item.id}
-            style={styles.list}
-          />
+          renderSearchSection()
         ) : (
           <FlatList
             data={friends}
@@ -349,12 +487,21 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     paddingHorizontal: 8,
   },
-  searchInput: {
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 10,
-    paddingHorizontal: 15,
+    paddingHorizontal: 10,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
     paddingVertical: 8,
     fontSize: 16,
+    color: '#333',
   },
   friendItem: {
     padding: 12,
@@ -408,10 +555,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(238, 238, 238, 0.5)',
-    marginHorizontal: 10,
-    marginVertical: 5,
     borderRadius: 10,
   },
   addButton: {
@@ -429,9 +572,15 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  addButtonDisabled: {
+    backgroundColor: '#999',
+  },
   addButtonText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  addButtonTextDisabled: {
+    color: '#ccc',
   },
   headerTop: {
     flexDirection: 'row',
@@ -478,5 +627,67 @@ const styles = StyleSheet.create({
   },
   offlineText: {
     color: '#666',
+  },
+  searchResultsContainer: {
+    flex: 1,
+  },
+  searchScrollView: {
+    flex: 1,
+  },
+  searchSection: {
+    marginBottom: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 15,
+    padding: 10,
+    marginHorizontal: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  searchSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 8,
+  },
+  searchItemContainer: {
+    marginBottom: 8,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 8,
+    fontSize: 16,
+    color: '#333',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  noResultsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+  },
+  noResultsIcon: {
+    marginBottom: 10,
+    opacity: 0.7,
+  },
+  noResultsText: {
+    color: '#fff',
+    fontSize: 16,
+    opacity: 0.7,
   },
 });

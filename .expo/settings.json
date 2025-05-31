@@ -1,0 +1,10 @@
+{
+  "hostType": "lan",
+  "lanType": "ip",
+  "dev": true,
+  "minify": false,
+  "urlRandomness": "bbliPJs",
+  "https": false,
+  "scheme": "exp+vaultapp",
+  "devClient": false
+}
