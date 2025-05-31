@@ -1,0 +1,50 @@
+main:
+when adding user it doesnt preview automatically on the other person friendlist.js screen
+
+make the search for user search from the people you added and below it the new user to add
+ because i want to search for my frineds names faster also
+
+make app load faster like users appear faster
+
+better firebase alerts
+
+
+
+firebase:
+show in database the location of user registaration /\
+
+friendlist:
+when adding new user preview it on both user not just one
+
+friendslist.js ///////////
+Message read receipts
+Search through messages
+Show last message timestamp
+Unread message counter
+User Profile Features:
+Profile pictures instead of initials   
+User presence indicators ///
+Chat Organization:
+Pin important chats !!!!
+Group chats support 
+Additional UI Elements:
+Pull-to-refresh !!!!
+
+Swipe actions (archive, delete, pin) !!!!!
+Settings and Customization:
+Dark mode support !!!!!
+Chat wallpaper \\
+Notification settings
+Message Features:
+Support for different message types (text, image, video, documents)
+Voice messages
+Reply and forward functionality
+To implement these features, you'll need to:
+Set up a proper backend service //
+Implement real-time messaging using WebSocket ///
+Add user authentication ////
+Implement push notifications
+
+
+
+

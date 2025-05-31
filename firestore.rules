@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if the user is accessing their own data
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper function to validate location data
+    function isValidLocation(location) {
+      return location is map && 
+             ('latitude' in location && location.latitude is number) && 
+             ('longitude' in location && location.longitude is number) &&
+             location.latitude >= -90 && 
+             location.latitude <= 90 &&
+             location.longitude >= -180 && 
+             location.longitude <= 180;
+    }
+
+    // Helper function to validate timestamps
+    function isValidTimestamp(field) {
+      return request.resource.data[field] is timestamp;
+    }
+
+    // Users collection rules
+    match /users/{userId} {
+      // Allow read for authenticated users (for search functionality)
+      allow read: if isAuthenticated();
+      
+      // Allow create for new user registration
+      allow create: if isOwner(userId);
+
+      // Allow updates for existing users
+      allow update: if isOwner(userId);
+      
+      // Friends subcollection rules
+      match /friends/{friendId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Location history subcollection
+      match /locationHistory/{logId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Chats collection rules
+    match /chats/{chatId} {
+      // Allow access if user is a participant in the chat
+      function isParticipant() {
+        let participants = chatId.split('_');
+        return isAuthenticated() && 
+          (request.auth.uid == participants[0] || 
+           request.auth.uid == participants[1]);
+      }
+
+      allow read, write: if isParticipant();
+
+      // Messages subcollection rules
+      match /messages/{messageId} {
+        allow read: if isParticipant();
+        allow create: if isParticipant() && 
+                       request.resource.data.senderId == request.auth.uid;
+        allow update: if false; // Messages cannot be edited
+        allow delete: if request.auth.uid == resource.data.senderId &&
+                       resource.data.timestamp.toMillis() > 
+                       (request.time.toMillis() - 300000); // 5 minutes delete window
+      }
+    }
+
+    // User activity logs
+    match /userLogs/{logId} {
+      allow read: if isAuthenticated() && 
+                    resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+                     request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false; // Logs cannot be modified or deleted
+    }
+  }
+} 
