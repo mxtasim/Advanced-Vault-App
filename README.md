@@ -6,11 +6,20 @@ The app uses **Firebase** as the backend for real-time chat, user authentication
 
 ## 🔗 Link to Original Project
 
-Check out the original version of this app:
+Check out the original version of this app (basic version):
 
 👉 [Vault Chat App (Original Version)](https://github.com/mxtasim/Vault-Chat-App)
 
-## 🚀 Features
+## 🚀 Getting Started
+
+```bash
+npm install       # Install dependencies
+npx expo start    # Start development server
+```
+
+---
+
+## ✅ Features Implemented
 
 - Built with **Expo** for cross-platform deployment
 - Firebase integration for:
