@@ -34,53 +34,15 @@ Check out the original version of this app (graduation project):
 - iOS
 - Web
 
-## 📦 Installation
+### Login Screen
 
-1. Clone this repo:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME
-   cd YOUR_REPO_NAME
-Install dependencies:
+![Chat Screenshot 1](1.jpeg)
 
-bash
-Copy
-Edit
-npm install
-Start the Expo server:
+---
 
-bash
-Copy
-Edit
-npm start
-You must have Expo CLI installed globally. If not:
+### Chat Interface Example 2
 
-bash
-Copy
-Edit
-npm install -g expo-cli
-🔐 Firebase Setup
-Make sure you add your own firebaseConfig inside the project:
-
-js
-Copy
-Edit
-// firebase.js or config.js
-const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "..."
-};
-📸 Screenshots
-Here are some previews of the app in action:
-
-Chat Interface
-
-Friend List & Requests
-
-Message View with Media
+![Chat Screenshot 2](src/sc2.png)
 
 🧑‍💻 Author
 Motasim Abuhalima
