@@ -1,51 +1,49 @@
 # Vault Chat App (Advanced Version)
 
-This is the **advanced version** of my original chat application, which I developed as part of my graduation project. It is now rebuilt using **Expo** to provide a smoother **mobile** and **web** experience.
+This is the **advanced version** of my original chat application, which I developed as part of my graduation project. It has been rebuilt using **Expo** to provide a smoother experience across **mobile** and **web platforms**.
 
-This version continues to use **Firebase** as the backend for authentication, real-time chat, media storage, and notifications.
+The app uses **Firebase** as the backend for real-time chat, user authentication, cloud storage, and push notifications.
 
 ## 🔗 Link to Original Project
 
-Check out the original version of this app (graduation project):
+Check out the original version of this app:
 
 👉 [Vault Chat App (Original Version)](https://github.com/mxtasim/Vault-Chat-App)
 
 ## 🚀 Features
 
-- Built with **Expo** for cross-platform compatibility
+- Built with **Expo** for cross-platform deployment
 - Firebase integration for:
-  - Authentication (email/password)
+  - Email/password authentication
   - Real-time messaging
-  - Image, file & voice message sharing
+  - Image, file, and voice message sharing
   - Push notifications
   - Message read status (Seen/Delivered)
-- Search for users & send friend requests
-- Friend list & private chat
-- Emoji support
+- Friend system with search and request handling
+- Private 1-on-1 chat interface
+- Emoji support for better user interaction
 
 ## 🛠️ Tech Stack
 
 - **Frontend**: React Native (Expo)
 - **Backend**: Firebase (Firestore, Auth, Storage, Cloud Messaging)
 
-## 📱 Platforms Supported
+## 📱 Supported Platforms
 
 - Android
 - iOS
 - Web
 
-### Login Screen
+## 📸 Screenshots
 
-![Chat Screenshot 1](1.jpeg)
+<div align="center">
+  <img src="./1.jpeg" alt="Login Screen" width="30%" style="margin-right:10px;" />
+  <img src="./2.jpeg" alt="Friends List" width="30%" style="margin-right:10px;" />
+  <img src="./3.jpeg" alt="Chat Screen" width="30%" />
+</div>
 
----
+## 🧑‍💻 Author
 
-### Chat Interface Example 2
+**Motasim Abuhalima**
 
-![Chat Screenshot 2](src/sc2.png)
-
-🧑‍💻 Author
-Motasim Abuhalima
-
-GitHub: @mxtasim
-
+- GitHub: [@mxtasim](https://github.com/mxtasim)
